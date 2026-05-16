@@ -1,50 +1,74 @@
-# Welcome to your Expo app 👋
+# 🧠 Habit Tracker
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+> *Великі перемоги починаються з маленьких рішень.*
 
-## Get started
+## 💡 Про що цей проект
 
-1. Install dependencies
+Цей додаток я створив для себе — щоб систематизувати своє життя та побудувати стабільні, корисні звички. Я вірю, що дисципліна — це не про ідеальність, а про послідовність. Кожен день, коли ти відмічаєш виконану звичку, — це маленька перемога. А маленькі перемоги складаються у великі зміни.
 
+Habit Tracker допомагає перетворити хаос повсякденності на чітку систему, де ти бачиш свій прогрес і відчуваєш контроль над своїм життям.
+
+## ✨ Що вміє додаток
+
+- 📋 **Створення та управління звичками** — додавай звички з власними іконками, кольорами та категоріями
+- 📅 **Гнучкий розклад** — налаштовуй дні тижня для кожної звички
+- 🔔 **Нагадування** — щоб не забувати про важливе
+- 📊 **Аналітика** — теплова карта, графіки прогресу, статистика по кожній звичці
+- 🏆 **Серії (streaks)** — відстежуй свою послідовність і не розривай ланцюжок
+- 🗂️ **Категорії** — організуй звички по групах (здоров'я, навчання, спорт тощо)
+- 📜 **Історія** — переглядай минулі дні та свій прогрес
+- 🗄️ **Архів** — архівуй неактуальні звички без втрати даних
+- 🎨 **Теми оформлення** — світла та темна тема на твій смак
+- 👤 **Профіль користувача** — персоналізуй свій досвід
+
+## 🛠️ Технології
+
+- [React Native](https://reactnative.dev/) + [Expo](https://expo.dev/)
+- [Expo Router](https://docs.expo.dev/router/introduction/) — файлова маршрутизація
+- [AsyncStorage](https://react-native-async-storage.github.io/async-storage/) — локальне збереження даних
+- [React Native Reanimated](https://docs.swmansion.com/react-native-reanimated/) — плавні анімації
+- [Expo Notifications](https://docs.expo.dev/versions/latest/sdk/notifications/) — push-нагадування
+- TypeScript
+
+## 🚀 Як запустити
+
+1. Встанови залежності:
    ```bash
    npm install
    ```
 
-2. Start the app
-
+2. Запусти додаток:
    ```bash
    npx expo start
    ```
 
-In the output, you'll find options to open the app in a
+3. Відкрий у:
+   - 📱 [Expo Go](https://expo.dev/go) на телефоні
+   - 🤖 [Android емуляторі](https://docs.expo.dev/workflow/android-studio-emulator/)
+   - 🍎 [iOS симуляторі](https://docs.expo.dev/workflow/ios-simulator/)
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## 🗺️ Плани на майбутнє
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+### 🔜 Найближчі кроки
+- **Челенджі** — система викликів (7 днів без цукру, 30 днів спорту тощо) для додаткової мотивації
+- **Досягнення** — система ачівок за послідовність та активність
 
-## Get a fresh project
+### 🌐 Бекенд та синхронізація
+- Серверна частина для збереження даних у хмарі
+- Синхронізація між пристроями
+- Авторизація та акаунти користувачів
 
-When you're ready, run:
+### 📱 Вихід у App Store & Google Play
+- Публікація в Apple App Store
+- Публікація в Google Play Store
+- Доступність для всіх користувачів
 
-```bash
-npm run reset-project
-```
+### 💡 Ідеї на перспективу
+- Соціальні функції — ділись прогресом з друзями
+- Віджети для головного екрану
+- Інтеграція з Apple Health / Google Fit
+- Експорт статистики
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+---
 
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+*Створено з 💙 та дисципліною.*

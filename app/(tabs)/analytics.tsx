@@ -161,6 +161,7 @@ function Heatmap({
         const dayIdx = (jsDay + 6) % 7;
 
         const scheduled = habits.filter((h) => {
+            if (dayDone && (dayDone[h.id] ?? 0) > 0) return true;
             const createdISO = h.createdAt?.split("T")[0];
             if (createdISO && dateISO < createdISO) return false;
             if (h.repeat?.days && h.repeat.days.length > 0) {
@@ -551,7 +552,7 @@ export default function Analytics() {
         : 0;
 
     return (
-        <SwipeTabs>
+        <SwipeTabs tabIndex={1}>
             <SafeAreaView style={[styles.container, { backgroundColor: c.bg }]} edges={["top"]}>
                 <Text style={[styles.title, { color: c.text }]}>Аналітика</Text>
 

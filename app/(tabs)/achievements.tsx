@@ -7,7 +7,7 @@ export default function Achievements() {
     const c = useTheme();
 
     return (
-        <SwipeTabs>
+        <SwipeTabs tabIndex={2}>
             <SafeAreaView style={[styles.container, { backgroundColor: c.bg }]} edges={["top"]}>
                 <Text style={[styles.title, { color: c.text }]}>Досягнення</Text>
                 <View style={[styles.placeholder, { backgroundColor: c.card }]}>

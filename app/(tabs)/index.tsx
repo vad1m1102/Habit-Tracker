@@ -12,13 +12,14 @@ import {
   getHabits,
   Habit,
   getDoneForDate,
+  incrementDoneForDate,
   incrementDoneToday,
   getStreak,
   archiveHabit,
   archiveExpiredHabits,
   reorderHabits,
 } from "../../src/storage/habits";
-import { Swipeable } from "react-native-gesture-handler";
+import Swipeable, { type SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
 import { useTheme } from "../../src/ui/useTheme";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -99,7 +100,9 @@ function HabitCard({
   setStreaks,
   load,
   c,
-  isPast,
+  selectedDateISO,
+  isViewingToday,
+  isFuture,
 }: {
   item: Habit;
   done: Record<string, number>;
@@ -108,9 +111,11 @@ function HabitCard({
   setStreaks: React.Dispatch<React.SetStateAction<Record<string, number>>>;
   load: () => void;
   c: ReturnType<typeof useTheme>;
-  isPast: boolean;
+  selectedDateISO: string;
+  isViewingToday: boolean;
+  isFuture: boolean;
 }) {
-  const swipeRef = useRef<Swipeable>(null);
+  const swipeRef = useRef<SwipeableMethods>(null);
 
   const goalCount = item.goal?.enabled ? item.goal.count : 1;
   const doneCount = done[item.id] ?? 0;
@@ -120,78 +125,97 @@ function HabitCard({
     <Pressable
       onPress={async () => {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        swipeRef.current?.close();
         await archiveHabit(item.id);
         load();
       }}
       style={styles.swipeArchive}
     >
       <Ionicons name="archive-outline" size={22} color="#000" />
-      <Text style={styles.swipeArchiveText}>Завершити</Text>
+      <Text style={styles.swipeArchiveText} numberOfLines={1}>Завершити</Text>
     </Pressable>
   );
 
   const leftActions = () => (
-    <View style={styles.swipeComplete}>
+    <Pressable
+      onPress={() => {
+        handleToggle();
+        swipeRef.current?.close();
+      }}
+      style={styles.swipeComplete}
+    >
       <Ionicons name="checkmark-circle" size={26} color="#000" />
-      <Text style={styles.swipeCompleteText}>Виконано</Text>
-    </View>
+      <Text style={styles.swipeCompleteText} numberOfLines={1}>
+        {isDone ? "Скасувати" : "Виконано"}
+      </Text>
+    </Pressable>
   );
 
-  const handleSwipeComplete = async () => {
-    // 1. ЗАПАМ'ЯТОВУЄМО МИНУЛЕ (на випадок катастрофи)
+  const handleToggle = async () => {
+    if (isFuture) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      return;
+    }
+
     const previousDoneCount = done[item.id] ?? 0;
     const previousStreak = streaks[item.id] ?? 0;
 
-    // 2. БРЕШЕМО КОРИСТУВАЧУ В ОБЛИЧЧЯ (ОПТИМІСТИЧНЕ ОНОВЛЕННЯ)
-    // Миттєво малюємо зелену галочку, не чекаючи відповіді від бази!
-    setDone(prev => ({ ...prev, [item.id]: previousDoneCount + goalCount }));
-    setStreaks(prev => ({ ...prev, [item.id]: previousStreak + 1 }));
+    // Optimistic calculation:
+    // If currently at or above goal → reset to 0, otherwise increment
+    const nextCount = previousDoneCount >= goalCount ? 0 : previousDoneCount + 1;
 
-    // Даємо вібрацію успіху, нехай радіє
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    // 1. Optimistic UI update
+    setDone((prev) => ({ ...prev, [item.id]: nextCount }));
+    if (nextCount > 0) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } else {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
 
-    // 3. СПРОБА ЗРОБИТИ РЕАЛЬНУ РОБОТУ
+    // 2. Persist to storage for selectedDateISO
     try {
-      // Тепер, коли UI вже красивий, ліземо в базу
-      const updatedDone = await incrementDoneToday(item.id, goalCount);
+      const updatedDone = await incrementDoneForDate(
+        item.id,
+        selectedDateISO,
+        goalCount
+      );
       const s = await getStreak(item.id);
 
-      // Синхронізуємо реальні дані з бази, щоб усе було точно на 100%
       setDone(updatedDone);
       setStreaks((prev) => ({ ...prev, [item.id]: s }));
 
+      if (isViewingToday) {
+        const h = await getHabits();
+        scheduleHabitReminders(h, updatedDone);
+      }
     } catch (error) {
-      // 4. ПОВНИЙ ПРОВАЛ? РОБИМО ВИГЛЯД, ЩО НІЧОГО НЕ БУЛО (ВІДКАТ)
-      console.error("Упс, база даних вирішила відпочити:", error);
-
-      // Повертаємо старі значення
-      setDone(prev => ({ ...prev, [item.id]: previousDoneCount }));
-      setStreaks(prev => ({ ...prev, [item.id]: previousStreak }));
-
-      // Б'ємо по руках вібрацією помилки
+      console.error("Помилка збереження звички:", error);
+      // Rollback
+      setDone((prev) => ({ ...prev, [item.id]: previousDoneCount }));
+      setStreaks((prev) => ({ ...prev, [item.id]: previousStreak }));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-
-      // Тут в ідеалі ще треба показати тостер: "Помилка збереження"
     }
   };
 
   return (
     <Swipeable
       ref={swipeRef}
-      renderRightActions={isPast ? undefined : rightActions}
-      renderLeftActions={isPast ? undefined : leftActions}
-      overshootRight={false}
+      containerStyle={styles.swipeContainer}
+      childrenContainerStyle={{ backgroundColor: c.card, borderRadius: 16 }}
+      renderRightActions={isViewingToday ? rightActions : undefined}
+      renderLeftActions={!isFuture ? leftActions : undefined}
       overshootLeft={false}
-      enabled={!isPast}
+      overshootRight={false}
+      enabled={!isFuture}
       onSwipeableOpen={(dir) => {
-        if (dir === "left") handleSwipeComplete();
-        setTimeout(() => swipeRef.current?.close(), 300);
+        if (dir === "right") {
+          handleToggle();
+          setTimeout(() => swipeRef.current?.close(), 300);
+        }
       }}
     >
       <Pressable
-        onPress={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        }}
+        onPress={handleToggle}
         onLongPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
           router.push({
@@ -199,10 +223,11 @@ function HabitCard({
             params: { habitId: item.id },
           });
         }}
-        style={({ pressed }) => [
+        style={[
           styles.card,
           { backgroundColor: c.card },
-          pressed && { opacity: 0.7, transform: [{ scale: 0.98 }] },
+
+          isFuture && { opacity: 0.6 },
         ]}
       >
         <View style={styles.cardContent}>
@@ -228,18 +253,24 @@ function HabitCard({
               </Text>
             ) : null}
             <Text style={[styles.sub, { color: c.sub }]}>
-              {isDone ? "" : ""} Стрік:{" "}
-              {streaks[item.id] ?? 0}🔥
+              Стрік: {streaks[item.id] ?? 0}🔥
             </Text>
           </View>
 
           {goalCount > 1 ? (
-            <View
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation?.();
+                handleToggle();
+              }}
+              hitSlop={8}
+              disabled={isFuture}
               style={[
                 styles.goalBadge,
                 {
                   backgroundColor: isDone ? c.accent : c.surface,
                   borderColor: isDone ? c.accent : c.surface,
+                  opacity: isFuture ? 0.4 : 1,
                 },
               ]}
             >
@@ -251,27 +282,35 @@ function HabitCard({
               >
                 {doneCount}/{goalCount}
               </Text>
-            </View>
+            </Pressable>
           ) : (
-            <View
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation?.();
+                handleToggle();
+              }}
+              hitSlop={8}
+              disabled={isFuture}
               style={[
                 styles.checkCircle,
                 {
                   borderColor: isDone ? c.accent : c.surface,
                   backgroundColor: isDone ? c.accent : "transparent",
+                  opacity: isFuture ? 0.4 : 1,
                 },
               ]}
             >
               {isDone && (
                 <Ionicons name="checkmark" size={16} color="#000" />
               )}
-            </View>
+            </Pressable>
           )}
         </View>
       </Pressable>
     </Swipeable>
   );
 }
+
 export default function Index() {
   const c = useTheme();
   const [habits, setHabits] = useState<Habit[]>([]);
@@ -296,9 +335,13 @@ export default function Index() {
         h.map(async (x) => [x.id, await getStreak(x.id)] as const)
       );
       setStreaks(Object.fromEntries(entries));
-      scheduleHabitReminders(h, d);
+
+      const todayDone = isSameDay(selectedDate, today)
+        ? d
+        : await getDoneForDate(dateToISO(today));
+      scheduleHabitReminders(h, todayDone);
     })();
-  }, [selectedDate]);
+  }, [selectedDate, today]);
 
   useFocusEffect(load);
 
@@ -307,19 +350,21 @@ export default function Index() {
     day: "numeric",
     month: "long",
   });
+  const selectedDateISO = useMemo(() => dateToISO(selectedDate), [selectedDate]);
+  const todayISOStr = useMemo(() => dateToISO(today), [today]);
   const isViewingToday = isSameDay(selectedDate, today);
+  const isFuture = selectedDateISO > todayISOStr;
 
   const selectedDayIdx = jsDayToIdx(selectedDate.getDay());
   const filteredHabits = useMemo(
     () =>
       habits.filter((h) => {
-        if (isViewingToday && h.isArchived) return false;
-        const createdISO = h.createdAt?.split("T")[0];
-        if (createdISO && dateToISO(selectedDate) < createdISO) return false;
+        if (h.isArchived && (done[h.id] ?? 0) === 0) return false;
+        if (h.repeat?.endDate && dateToISO(selectedDate) > h.repeat.endDate) return false;
         if (!h.repeat?.days || h.repeat.days.length === 0) return true;
         return h.repeat.days.includes(selectedDayIdx);
       }),
-    [habits, selectedDayIdx, isViewingToday, selectedDate]
+    [habits, selectedDayIdx, selectedDate, done]
   );
 
   const total = filteredHabits.length;
@@ -327,8 +372,6 @@ export default function Index() {
     const goalCount = h.goal?.enabled ? h.goal.count : 1;
     return (done[h.id] ?? 0) >= goalCount;
   }).length;
-
-
 
   const handleDragEnd = async ({ data }: { data: Habit[] }) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -356,7 +399,9 @@ export default function Index() {
             setStreaks={setStreaks}
             load={load}
             c={c}
-            isPast={true}
+            selectedDateISO={selectedDateISO}
+            isViewingToday={isViewingToday}
+            isFuture={isFuture}
           />
         </View>
       </View>
@@ -364,7 +409,7 @@ export default function Index() {
   );
 
   return (
-    <SwipeTabs>
+    <SwipeTabs tabIndex={0}>
       <SafeAreaView
         style={[styles.container, { backgroundColor: c.bg }]}
         edges={["top"]}
@@ -378,6 +423,17 @@ export default function Index() {
             <Text style={[styles.title, { color: c.text }]}>{dateStr}</Text>
           </View>
           <View style={{ flexDirection: "row", gap: 8 }}>
+            {!isViewingToday && (
+              <Pressable
+                style={[styles.allBtn, { backgroundColor: c.card }]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setSelectedDate(new Date());
+                }}
+              >
+                <Ionicons name="today-outline" size={22} color={c.text} />
+              </Pressable>
+            )}
             {isViewingToday && (
               <Pressable
                 style={[
@@ -503,7 +559,7 @@ export default function Index() {
 
 
         {/* Habits list */}
-        <View style={{ flex: 1, overflow: 'hidden' }}>
+        <View style={{ flex: 1, overflow: 'visible' }}>
           {reorderMode ? (
             <DraggableFlatList
               data={filteredHabits}
@@ -520,6 +576,7 @@ export default function Index() {
               keyExtractor={(h) => h.id}
               contentContainerStyle={{ paddingBottom: 100 }}
               showsVerticalScrollIndicator={false}
+              removeClippedSubviews={false}
               renderItem={({ item }) => (
                 <HabitCard
                   item={item}
@@ -529,7 +586,9 @@ export default function Index() {
                   setStreaks={setStreaks}
                   load={load}
                   c={c}
-                  isPast={!isViewingToday}
+                  selectedDateISO={selectedDateISO}
+                  isViewingToday={isViewingToday}
+                  isFuture={isFuture}
                 />
               )}
               ListEmptyComponent={
@@ -616,10 +675,14 @@ const styles = StyleSheet.create({
   },
 
   /* Habit card */
+  swipeContainer: {
+    marginBottom: 10,
+    borderRadius: 16,
+    overflow: "hidden",
+  },
   card: {
     borderRadius: 16,
     padding: 14,
-    marginBottom: 10,
   },
   cardContent: {
     flexDirection: "row",
@@ -673,12 +736,12 @@ const styles = StyleSheet.create({
 
   /* Swipe actions */
   swipeArchive: {
-    marginBottom: 10,
+    height: "100%",
     backgroundColor: "#F5A623",
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 16,
+    paddingHorizontal: 18,
     marginLeft: 8,
   },
   swipeArchiveText: {
@@ -688,12 +751,12 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   swipeComplete: {
-    marginBottom: 10,
+    height: "100%",
     backgroundColor: "#C6E94D",
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 20,
+    paddingHorizontal: 18,
     marginRight: 8,
   },
   swipeCompleteText: {
@@ -712,3 +775,4 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
 });
+

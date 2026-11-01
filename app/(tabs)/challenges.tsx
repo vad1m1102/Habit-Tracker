@@ -7,7 +7,7 @@ export default function Challenges() {
     const c = useTheme();
 
     return (
-        <SwipeTabs>
+        <SwipeTabs tabIndex={3}>
             <SafeAreaView style={[styles.container, { backgroundColor: c.bg }]} edges={["top"]}>
                 <Text style={[styles.title, { color: c.text }]}>Челенджі</Text>
                 <View style={[styles.placeholder, { backgroundColor: c.card }]}>

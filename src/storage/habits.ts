@@ -12,6 +12,7 @@ export type HabitGoal = {
   enabled: boolean;
   count: number;
   period: "day" | "week";
+  unit?: string; // e.g. "стор.", "мл", "скл.", "хв", "раз"
 };
 
 export type HabitReminder = {
@@ -40,7 +41,7 @@ export const defaultHabit: Omit<Habit, "id" | "createdAt"> = {
   color: "#F5A623",
   category: "",
   repeat: { type: "daily", days: [0, 1, 2, 3, 4, 5, 6] },
-  goal: { enabled: true, count: 1, period: "day" },
+  goal: { enabled: true, count: 1, period: "day", unit: "раз" },
   reminder: { enabled: false, time: "20:00" },
   isArchived: false,
 };
@@ -150,26 +151,60 @@ export async function getAllDone(): Promise<Record<string, Record<string, number
   return raw ? (JSON.parse(raw) as Record<string, Record<string, number>>) : {};
 }
 
-/** Increment completion count for a habit today, up to goalCount. If already at goal, reset to 0. */
-export async function incrementDoneToday(
+/** Increment completion count for a habit on a specific date (e.g. past day or today), up to goalCount. If already at goal, reset to 0. */
+export async function incrementDoneForDate(
   habitId: string,
+  dateISO: string,
   goalCount: number = 1
 ): Promise<Record<string, number>> {
   const raw = await AsyncStorage.getItem(DONE_KEY);
   const all = raw ? (JSON.parse(raw) as Record<string, Record<string, number>>) : {};
 
-  const day = todayISO();
-  const map = all[day] ?? {};
+  const map = all[dateISO] ?? {};
   const current = map[habitId] ?? 0;
 
   // If at or above goal → reset to 0, otherwise increment
   const next = current >= goalCount ? 0 : current + 1;
 
   const updated = { ...map, [habitId]: next };
-  all[day] = updated;
+  all[dateISO] = updated;
 
   await AsyncStorage.setItem(DONE_KEY, JSON.stringify(all));
   return updated;
+}
+
+/** Set exact completion count for a habit on a specific date (e.g. from slider) */
+export async function setDoneForDate(
+  habitId: string,
+  dateISO: string,
+  count: number
+): Promise<Record<string, number>> {
+  const raw = await AsyncStorage.getItem(DONE_KEY);
+  const all = raw ? (JSON.parse(raw) as Record<string, Record<string, number>>) : {};
+
+  const map = all[dateISO] ?? {};
+  const updated = { ...map, [habitId]: Math.max(0, count) };
+  all[dateISO] = updated;
+
+  await AsyncStorage.setItem(DONE_KEY, JSON.stringify(all));
+  return updated;
+}
+
+/** Increment completion count for a habit today, up to goalCount. If already at goal, reset to 0. */
+export async function incrementDoneToday(
+  habitId: string,
+  goalCount: number = 1
+): Promise<Record<string, number>> {
+  return incrementDoneForDate(habitId, todayISO(), goalCount);
+}
+
+/** Toggle completion for a habit on a specific date */
+export async function toggleDoneForDate(
+  habitId: string,
+  dateISO: string,
+  goalCount: number = 1
+): Promise<Record<string, number>> {
+  return incrementDoneForDate(habitId, dateISO, goalCount);
 }
 
 /** @deprecated — use incrementDoneToday instead */
@@ -191,14 +226,20 @@ function shiftDate(iso: string, delta: number) {
 
 export async function getStreak(habitId: string): Promise<number> {
   const raw = await AsyncStorage.getItem(DONE_KEY);
-  const all = raw ? (JSON.parse(raw) as Record<string, Record<string, 0 | 1>>) : {};
+  const all = raw ? (JSON.parse(raw) as Record<string, Record<string, number>>) : {};
 
-  const start = all[todayISO()]?.[habitId] ? todayISO() : shiftDate(todayISO(), -1);
+  const habits = await getHabits();
+  const habit = habits.find((h) => h.id === habitId);
+  const goalCount = habit?.goal?.enabled ? habit.goal.count : 1;
+
+  const isDoneOnDay = (iso: string) => (all[iso]?.[habitId] ?? 0) >= goalCount;
+  const todayStr = todayISO();
+  const start = isDoneOnDay(todayStr) ? todayStr : shiftDate(todayStr, -1);
 
   let streak = 0;
   let cursor = start;
 
-  while (all[cursor]?.[habitId]) {
+  while (isDoneOnDay(cursor)) {
     streak += 1;
     cursor = shiftDate(cursor, -1);
   }
@@ -208,13 +249,18 @@ export async function getStreak(habitId: string): Promise<number> {
 
 export async function getBestStreak(habitId: string): Promise<number> {
   const all = await getAllDone();
+  const habits = await getHabits();
+  const habit = habits.find((h) => h.id === habitId);
+  const goalCount = habit?.goal?.enabled ? habit.goal.count : 1;
+  const isDoneOnDay = (iso: string) => (all[iso]?.[habitId] ?? 0) >= goalCount;
+
   const dates = Object.keys(all).sort();
 
   let best = 0;
   let current = 0;
 
   for (let i = 0; i < dates.length; i++) {
-    if (all[dates[i]]?.[habitId]) {
+    if (isDoneOnDay(dates[i])) {
       current++;
       if (i > 0) {
         const expected = shiftDate(dates[i - 1], 1);
@@ -231,9 +277,12 @@ export async function getBestStreak(habitId: string): Promise<number> {
 
 export async function getTotalCompletions(habitId: string): Promise<number> {
   const all = await getAllDone();
+  const habits = await getHabits();
+  const habit = habits.find((h) => h.id === habitId);
+  const goalCount = habit?.goal?.enabled ? habit.goal.count : 1;
   let total = 0;
   for (const day of Object.values(all)) {
-    if (day[habitId]) total++;
+    if ((day[habitId] ?? 0) >= goalCount) total++;
   }
   return total;
 }

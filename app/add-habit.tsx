@@ -14,6 +14,7 @@ import {
 import { useState } from "react";
 import { router, useLocalSearchParams } from "expo-router";
 import { addHabit, defaultHabit } from "../src/storage/habits";
+import { categories, getCategoryById } from "../src/data/categories";
 import { useTheme } from "../src/ui/useTheme";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -67,6 +68,7 @@ export default function AddHabit() {
   const [icon, setIcon] = useState(defaultHabit.icon);
   const [color, setColor] = useState(defaultHabit.color);
   const [category, setCategory] = useState(params.categoryId || "");
+  const [showCategory, setShowCategory] = useState(false);
 
   // Repeat
   const [repeatEnabled, setRepeatEnabled] = useState(true);
@@ -244,6 +246,48 @@ export default function AddHabit() {
             </View>
           </View>
         )}
+
+        {/* Category */}
+        <View style={[styles.section, { backgroundColor: c.card }]}>
+          <Pressable
+            style={styles.sectionRow}
+            onPress={() => {
+              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+              setShowCategory(!showCategory);
+            }}
+          >
+            <Text style={[styles.sectionLabel, { color: c.text }]}>Категорія</Text>
+            <Text style={{ color: c.sub, fontSize: 14 }}>
+              {getCategoryById(category)?.name || "Без категорії"}
+            </Text>
+          </Pressable>
+          {showCategory && (
+            <View style={{ marginTop: 12, gap: 6 }}>
+              {categories.map((cat) => (
+                <Pressable
+                  key={cat.id}
+                  onPress={() => {
+                    setCategory(category === cat.id ? "" : cat.id);
+                    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                    setShowCategory(false);
+                  }}
+                  style={[
+                    styles.categoryItem,
+                    { backgroundColor: category === cat.id ? cat.color + "33" : c.surface },
+                  ]}
+                >
+                  <Text style={{ fontSize: 18 }}>{cat.icon}</Text>
+                  <Text style={[{ color: c.text, fontSize: 14, fontWeight: "600", flex: 1 }]}>
+                    {cat.name}
+                  </Text>
+                  {category === cat.id && (
+                    <Ionicons name="checkmark" size={18} color={c.accent} />
+                  )}
+                </Pressable>
+              ))}
+            </View>
+          )}
+        </View>
 
         {/* Repeat */}
         <View style={[styles.section, { backgroundColor: c.card }]}>
@@ -561,6 +605,13 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
+  categoryItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 10,
+    padding: 10,
+  },
   daysRow: {
     flexDirection: "row",
     justifyContent: "space-between",

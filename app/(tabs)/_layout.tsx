@@ -68,7 +68,7 @@ function CustomTabBar({
         style={[styles.fab, { backgroundColor: c.accent as string, shadowColor: c.accent as string }]}
         onPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-          router.push("/categories");
+          router.push("/add-habit");
         }}
       >
         <Ionicons name="add" size={32} color="#000" />

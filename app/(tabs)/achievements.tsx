@@ -9,6 +9,7 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "expo-router";
@@ -207,6 +208,12 @@ const EMOJI_OPTIONS = ["🏅","⭐","💎","🎖️","🥇","🌈","🎉","💪"
 // ── Component ──────────────────────────────────────────────────────────────────
 export default function AchievementsScreen() {
   const c = useTheme();
+  const { width } = useWindowDimensions();
+  const PADDING = 16;
+  const GAP = 12;
+  const numColumns = width >= 768 ? 4 : width >= 500 ? 3 : 2;
+  const cardWidth = Math.floor((width - PADDING * 2 - GAP * (numColumns - 1)) / numColumns);
+
   const [autoBadges, setAutoBadges] = useState<AutoBadge[]>([]);
   const [customBadges, setCustomBadges] = useState<CustomBadge[]>([]);
   const [loading, setLoading] = useState(true);
@@ -324,7 +331,7 @@ export default function AchievementsScreen() {
                     key={badge.id}
                     style={[
                       styles.badgeCard,
-                      { backgroundColor: c.card, opacity: badge.unlocked ? 1 : 0.4 },
+                      { width: cardWidth, backgroundColor: c.card, opacity: badge.unlocked ? 1 : 0.4 },
                     ]}
                   >
                     <Text style={styles.badgeIcon}>{badge.icon}</Text>
@@ -381,7 +388,7 @@ export default function AchievementsScreen() {
                 {customBadges.map((badge) => (
                   <TouchableOpacity
                     key={badge.id}
-                    style={[styles.badgeCard, { backgroundColor: c.card }]}
+                    style={[styles.badgeCard, { width: cardWidth, backgroundColor: c.card }]}
                     onLongPress={() => deleteCustomBadge(badge.id)}
                     activeOpacity={0.8}
                   >
@@ -513,12 +520,10 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     gap: 12,
   },
   badgeCard: {
-    width: "46%",
-    marginHorizontal: "2%",
     borderRadius: 16,
     padding: 14,
     alignItems: "center",
